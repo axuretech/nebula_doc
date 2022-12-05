@@ -1,125 +1,95 @@
 # 5.2. Sniffer nginx kafka驱动支持
 
-* 了解 openresty
-* 安装 openresty
+* 了解 openresty
+* 安装 openresty
 * 测试 openresty 是否正常
 * 包含新的 nginx
-    * 安装 openresty-kafka 模块
-    * 导入 kafka.lua 等依赖
-    * 修改 kafka.lua 中的配置
-* 原机有 nginx    
-    * 安装 lua
-    * 重新编译 nginx 的环境依赖
-    * 导入 kafka.lua 等依赖
-    * 修改 kafka.lua 中的配置
-    * 导入 openresty 依赖
-    * 安装 lua-resty-kafka 模块
-
+  * 安装 openresty-kafka 模块
+  * 导入 kafka.lua 等依赖
+  * 修改 kafka.lua 中的配置
+* 原机有 nginx
+  * 安装 lua
+  * 重新编译 nginx 的环境依赖
+  * 导入 kafka.lua 等依赖
+  * 修改 kafka.lua 中的配置
+  * 导入 openresty 依赖
+  * 安装 lua-resty-kafka 模块
 * nginx 的配置
-    * 新的 nginx 配置
-    * 原有 nginx 配置
+  * 新的 nginx 配置
+  * 原有 nginx 配置
 * 解释如何收集流量以及计算
 * sniffer 相关配置
 * 排查错误
 
-### 了解 openresty
-----
+### 了解 openresty
+
+***
+
 OpenResty由 Nginx 核心加很多第三方模块组成，默认集成了Lua开发环境，使得Nginx可以作为一个Web Server使用. Nginx有很多的特性和好处，但是在Nginx上开发成了一个难题，Nginx模块需要用C开发，而且必须符合一系列复杂的规则，最重要的用C开发模块必须要熟悉Nginx的源代码，使得开发者对其望而生畏。为了开发人员方便，所以接下来我们要介绍一种整合了Nginx和lua的框架，那就是OpenResty，它帮我们实现了可以用lua的规范开发，实现各种业务，并且帮我们弄清楚各个模块的编译顺序.
 
-### 安装 openresty
-----
-安装依赖
-yum install readline-devel pcre-devel openssl-devel gcc
+### 安装 openresty
 
---1. 下载openresty源码： http://openresty.org/cn/download.html
-$ wget https://openresty.org/download/openresty-1.15.8.1rc1.tar.gz
+***
 
+安装依赖 yum install readline-devel pcre-devel openssl-devel gcc
 
--- 2. 解压tar包
-$ tar -zxvf openresty-1.15.8.1rc1.tar.gz
+\--1. 下载openresty源码： http://openresty.org/cn/download.html $ wget https://openresty.org/download/openresty-1.15.8.1rc1.tar.gz
 
--- 3. 配置编译选项，可以根据你的实际情况增加、减少相应的模块
-$ ./configure --prefix=/opt/openresty --with-luajit --without-http_redis2_module --with-http_iconv_module
+\-- 2. 解压tar包 $ tar -zxvf openresty-1.15.8.1rc1.tar.gz
 
--- 4. 编译并安装
-$ make
-$ make install
+\-- 3. 配置编译选项，可以根据你的实际情况增加、减少相应的模块 $ ./configure --prefix=/opt/openresty --with-luajit --without-http\_redis2\_module --with-http\_iconv\_module
+
+\-- 4. 编译并安装 $ make $ make install
+
 ### 测试安装是否正常
--- 1. 修改配置文件如下：
-$ cat /opt/openresty/nginx/conf/nginx.conf
-worker_processes  1;
-error_log logs/error.log info;
 
+\-- 1. 修改配置文件如下： $ cat /opt/openresty/nginx/conf/nginx.conf worker\_processes  1; error\_log logs/error.log info;
 
-events {
-    worker_connections 1024;
-}
+events {     worker\_connections 1024; }
 
+http {     server {         listen 8003;
 
-http {
-    server {
-        listen 8003;
+&#x20;       location / {             content\_by\_lua 'ngx.say("hello world.")';         }     } }
 
+\-- 2. 启动nginx $ /opt/openresty/nginx/sbin/nginx
 
-        location / {
-            content_by_lua 'ngx.say("hello world.")';
-        }
-    }
-}
-
-
--- 2. 启动nginx
-$ /opt/openresty/nginx/sbin/nginx
-
-
--- 3. 检查nginx
-$ curl http://127.0.0.1:8003/
-hello world.
+\-- 3. 检查nginx $ curl http://127.0.0.1:8003/ hello world.
 
 出现 hello world 则是正常的
 
-
 ### 包含新的 nginx
 
-#### 安装 openresty-kafka 模块
-1. 首先在 github 上下载开源的 lua-resty-kafka
-wget https://github.com/doujiang24/lua-resty-kafka/archive/v0.06.tar.gz
-2. 然后解压
-tar -zxvf v0.06.tar.gz
-3. 到以下目录 复制
-cd lua-resty-kafka-0.06/lib/resty
-cp -rf kafka /opt/openresty/lualib/resty/
-这个目录是openresty的安装目录中的resty 请自行判断, 你安装在哪个位置, resty就对应在哪个位置
+#### 安装 openresty-kafka 模块
+
+1. 首先在 github 上下载开源的 lua-resty-kafka wget https://github.com/doujiang24/lua-resty-kafka/archive/v0.06.tar.gz
+2. 然后解压 tar -zxvf v0.06.tar.gz
+3. 到以下目录 复制 cd lua-resty-kafka-0.06/lib/resty cp -rf kafka /opt/openresty/lualib/resty/ 这个目录是openresty的安装目录中的resty 请自行判断, 你安装在哪个位置, resty就对应在哪个位置
 4. 这样就完成了
 
 #### 导入 kafka.lua 等依赖
-从nginx得到的流量转化成sniffer适用的格式, 先导入kafka.lua脚本
-kafka.lua 的位置在 sniffer 的 lua 目录中
-导入的位置是 /opt/openresty/lualib/
+
+从nginx得到的流量转化成sniffer适用的格式, 先导入kafka.lua脚本 kafka.lua 的位置在 sniffer 的 lua 目录中 导入的位置是 /opt/openresty/lualib/
 
 #### 修改 kafka.lua 中的配置
-在 kafka 脚本中的 kafka 的 IP 以及端口需要更改
-vim kafka.lua, 修改以下地址
 
--- 定义kafka broker地址
-local broker_list = {
-    { host = "172.x.x.x", port = 9092 },
-}
+在 kafka 脚本中的 kafka 的 IP 以及端口需要更改 vim kafka.lua, 修改以下地址
 
-### 原机有 nginx    
+\-- 定义kafka broker地址 local broker\_list = { { host = "172.x.x.x", port = 9092 }, }
+
+### 原机有 nginx
 
 #### 安装 lua
-实际上在下载 openresty 安装包的时候，里面其实已经依赖了lua了，只需要安装就好了
-到解压 openresty 安装包中
 
-cd bundle/LuaJIT-2.1-20190228
-如果版本不一致就是对一下 LuaJIT 的文件夹就好了
+实际上在下载 openresty 安装包的时候，里面其实已经依赖了lua了，只需要安装就好了 到解压 openresty 安装包中
+
+cd bundle/LuaJIT-2.1-20190228 如果版本不一致就是对一下 LuaJIT 的文件夹就好了
 
 make
 
 make install
 
 安装好的环境依赖如下
+
 ```
 ==== Installing LuaJIT 2.1.0-beta3 to /usr/local ====
 mkdir -p /usr/local/bin /usr/local/lib /usr/local/include/luajit-2.1 /usr/local/share/man/man1 /usr/local/lib/pkgconfig /usr/local/share/luajit-2.1.0-beta3/jit /usr/local/share/lua/5.1 /usr/local/lib/lua/5.1
@@ -142,7 +112,9 @@ ln -sf luajit-2.1.0-beta3 /usr/local/bin/luajit
 ```
 
 ### 重新编译 nginx 的环境依赖
+
 首先以下的相关依赖都是根据 nginx 默认的安装目录, 依赖去配置的, 如果有不同的地方, 需要自己配置一下.
+
 ```
 nginx 默认配置目录
   nginx path prefix: "/usr/local/nginx"
@@ -154,7 +126,9 @@ nginx 默认配置目录
   nginx error log file: "/usr/local/nginx/logs/error.log"
   nginx http access log file: "/usr/local/nginx/logs/access.log"
 ```
+
 下载 nginx 源码编译
+
 ```
 wget http://nginx.org/download/nginx-1.16.0.tar.gz
 
@@ -226,8 +200,8 @@ location / {
 
 ```
 
-
 ### 导入 kafka.lua 等依赖
+
 ```
 cd /usr/local/nginx/
 mkdir lua
@@ -238,49 +212,37 @@ mkdir lua
 ```
 
 #### 修改 kafka.lua 中的配置
-在 kafka 脚本中的 kafka 的 IP 以及端口需要更改
-vim kafka.lua, 修改以下地址
 
--- 定义kafka broker地址
-local broker_list = {
-    { host = "172.x.x.x", port = 9092 },
-}
+在 kafka 脚本中的 kafka 的 IP 以及端口需要更改 vim kafka.lua, 修改以下地址
+
+\-- 定义kafka broker地址 local broker\_list = { { host = "172.x.x.x", port = 9092 }, }
+
 ### 导入 openresty 依赖
 
 首先安装 openresty 的目录是 /opt/openresty 所以以下命令都是按这个命令来了, 如果你是安装在其他地方, 请注意一下
 
-cp -rf /opt/openresty/lualib/resty  /usr/local/share/luajit-2.1.0-beta3/
+cp -rf /opt/openresty/lualib/resty /usr/local/share/luajit-2.1.0-beta3/
 
 如果不行请确认以下 luajit 的版本, 基本不会有啥问题
 
-### 安装 lua-resty-kafka 模块
+### 安装 lua-resty-kafka 模块
 
-1. 首先在 github 上下载开源的 lua-resty-kafka
-wget https://github.com/doujiang24/lua-resty-kafka/archive/v0.06.tar.gz
-2. 然后解压
-tar -zxvf v0.06.tar.gz
-3. 到以下目录 复制
-cd lua-resty-kafka-0.06/lib/resty
-cp -rf kafka  /usr/local/share/luajit-2.1.0-beta3/resty/
+1. 首先在 github 上下载开源的 lua-resty-kafka wget https://github.com/doujiang24/lua-resty-kafka/archive/v0.06.tar.gz
+2. 然后解压 tar -zxvf v0.06.tar.gz
+3. 到以下目录 复制 cd lua-resty-kafka-0.06/lib/resty cp -rf kafka /usr/local/share/luajit-2.1.0-beta3/resty/
 
-这个目录是 luajit-2.1.0-beta3/resty/ 请自行判断, 你安装在哪个位置, resty就对应在哪个位置
-4. 这样就完成了
-
-
+这个目录是 luajit-2.1.0-beta3/resty/ 请自行判断, 你安装在哪个位置, resty就对应在哪个位置 4. 这样就完成了
 
 ### nginx 的配置
+
 #### 新的 nginx 配置
+
 1. 接下来需要修改nginx配置来启用 kafka.lua 脚本
-2. 首先需要开启错误日志 找到#error_log  logs/error.log; 将 '#' 删除
-3. 然后需要在server中增加参数
-        set $httplog_to_kafka 1;
-        set $lualib_path  /opt/openresty/lualib;
-4. 以及将流量转发到 lua 中
-if ( $httplog_to_kafka ) {
-                #content_by_lua 'ngx.print("run kafka.lua.")';
-                log_by_lua_file $lualib_path/kafka.lua;
-}
+2. 首先需要开启错误日志 找到#error\_log logs/error.log; 将 '#' 删除
+3. 然后需要在server中增加参数 set $httplog\_to\_kafka 1; set $lualib\_path /opt/openresty/lualib;
+4. 以及将流量转发到 lua 中 if ( $httplog\_to\_kafka ) { #content\_by\_lua 'ngx.print("run kafka.lua.")'; log\_by\_lua\_file $lualib\_path/kafka.lua; }
 5. 以上是简单版, 纯属解释以下, 上个完整版方便你自己的 nginx 对照
+
 ```
 #user  nobody;
 worker_processes  1;
@@ -403,14 +365,15 @@ http {
 }
 ```
 
-
 #### 原有 nginx 配置
+
 关键的地方是
+
 ```
 log_by_lua_file lua/kafka.lua;
 ```
-运行的目录是 lua 中的 kafka.lua
-导入的模块位置是 /usr/local/share/luajit-2.1.0-beta3/resty/
+
+运行的目录是 lua 中的 kafka.lua 导入的模块位置是 /usr/local/share/luajit-2.1.0-beta3/resty/
 
 ```
 
@@ -535,9 +498,9 @@ http {
 }
 ```
 
-
 ### 解释如何收集流量以及计算
-这部分相对比较简单了, 就是解释一下流量是如何流入到计算出风险的, 首先流量是先经过 nginx 的, 而 openresty 是一个扩展模块, 支持 lua 脚本, 这时候流量会经过我们设定好的 lua 脚本, lua脚本通过设定的分析, 归类为一个结构体, 当然这个结构体是为了适应 sniffer 所支持的格式. 具体可以看 kafka.lua 这个文件中的代码, 也可以看依赖的其他 lua 文件. kafka.lua 这个文件中, 最终把流量解析成一定的格式发送到了 kafka, 然后 sniffer 通过 docker-compose 配置的 kafka,  sniffer 中的 kafka 驱动得到启动, 从 kafka 获得这些流量, 将这些流量处理之后, 发送到了计算模块.
+
+这部分相对比较简单了, 就是解释一下流量是如何流入到计算出风险的, 首先流量是先经过 nginx 的, 而 openresty 是一个扩展模块, 支持 lua 脚本, 这时候流量会经过我们设定好的 lua 脚本, lua脚本通过设定的分析, 归类为一个结构体, 当然这个结构体是为了适应 sniffer 所支持的格式. 具体可以看 kafka.lua 这个文件中的代码, 也可以看依赖的其他 lua 文件. kafka.lua 这个文件中, 最终把流量解析成一定的格式发送到了 kafka, 然后 sniffer 通过 docker-compose 配置的 kafka, sniffer 中的 kafka 驱动得到启动, 从 kafka 获得这些流量, 将这些流量处理之后, 发送到了计算模块.
 
 ### sniffer 相关配置
 
@@ -569,11 +532,12 @@ services:
 ```
 
 其实关键的地方在于
-1. BOOTSTRAP_SERVERS=kafka 的 IP 和端口
+
+1. BOOTSTRAP\_SERVERS=kafka 的 IP 和端口
 2. SOURCES=kafka 那么 sniffer 是按 kafka 驱动来获得流量的
 
-
 ### 排查错误
+
 排查错误, 主要的错误在于 nginx 与 openresty lua 的程序上, 所以需要在 nginx 上开启 error 日志记录, 上面的教程中有写, 非常的简单. 如果流量进来, 通过 lua 脚本运行有什么错误, 都会在 error.log 日志中体现, 如果没有错误, 那流量在 nginx 这端基本上没有什么问题.
 
 如果在 snffer 还是没办法获取到流量, 那么还是要通过排查 kafka sniffer 方面的日志来解决.
